@@ -16,6 +16,7 @@ services/nlp_service/.venv/
 # Python cache
 # -------------------------
 __pycache__/
+services/nlp_service/__pycache__/
 *.pyc
 *.pyo
 
