@@ -56,9 +56,17 @@ const upsertRecommendationForUser = async ({ userId, opportunity }) => {
   return updated;
 };
 
-const updateRecommendationsForOpportunity = async (opportunity) => {
+const updateRecommendationsForOpportunity = async (opportunity, targetUserId = null) => {
   if (!opportunity?._id) {
     return [];
+  }
+
+  if (targetUserId) {
+    const singleUpdate = await upsertRecommendationForUser({
+      userId: targetUserId,
+      opportunity,
+    });
+    return singleUpdate ? [singleUpdate] : [];
   }
 
   const profiles = await UserProfile.find({}).select('userId skills').lean();
@@ -78,7 +86,7 @@ const getUserRecommendations = async (userId, limit = 20) => {
     .lean();
 
   if (!recommendations.length) {
-    const opportunities = await Opportunity.find({})
+    const opportunities = await Opportunity.find({ userId })
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();

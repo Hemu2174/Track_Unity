@@ -5,7 +5,16 @@ const UserProfile = require('../models/UserProfile');
 // @access  Private
 const saveOnboarding = async (req, res, next) => {
   try {
-    const { userType, careerDomain, preferredRole, careerGoal, jobPreference, skills, education } = req.body;
+    const {
+      userType,
+      careerDomain,
+      preferredRole,
+      careerGoal,
+      jobPreference,
+      telegramUserId,
+      skills,
+      education,
+    } = req.body;
 
     let profile = await UserProfile.findOne({ userId: req.user._id });
 
@@ -16,6 +25,7 @@ const saveOnboarding = async (req, res, next) => {
       profile.preferredRole = preferredRole ?? profile.preferredRole;
       profile.careerGoal = careerGoal ?? profile.careerGoal;
       profile.jobPreference = jobPreference ?? profile.jobPreference;
+      profile.telegramUserId = telegramUserId ?? profile.telegramUserId;
       profile.skills = skills ?? profile.skills;
       profile.education = education ?? profile.education;
       profile.onboardingCompleted = true;
@@ -28,6 +38,7 @@ const saveOnboarding = async (req, res, next) => {
         preferredRole,
         careerGoal,
         jobPreference,
+        telegramUserId,
         skills,
         education,
         onboardingCompleted: true,
@@ -64,7 +75,7 @@ const updateProfile = async (req, res, next) => {
   try {
     const allowedFields = [
       'userType', 'careerDomain', 'preferredRole', 'careerGoal',
-      'jobPreference', 'skills', 'education',
+      'jobPreference', 'telegramUserId', 'skills', 'education',
     ];
 
     const updates = {};

@@ -53,6 +53,10 @@ const initializeTelegramBot = async () => {
       }, {
         timeout: Number(process.env.TELEGRAM_FORWARD_TIMEOUT_MS) || 10000,
       });
+
+      if (msg.chat?.id) {
+        await botInstance.sendMessage(msg.chat.id, 'Opportunity received and added to your dashboard.');
+      }
     } catch (error) {
       console.error(`Telegram forward failed: ${error.message}`);
     }

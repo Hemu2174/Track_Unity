@@ -6,7 +6,7 @@ const Opportunity = require('../models/Opportunity');
 const getAllOpportunities = async (req, res, next) => {
   try {
     const { domain, company, search } = req.query;
-    const filter = {};
+    const filter = { userId: req.user._id };
 
     if (domain) filter.domain = { $regex: domain, $options: 'i' };
     if (company) filter.company = { $regex: company, $options: 'i' };
@@ -34,7 +34,10 @@ const getAllOpportunities = async (req, res, next) => {
 // @access  Private
 const getOpportunityById = async (req, res, next) => {
   try {
-    const opportunity = await Opportunity.findById(req.params.id).populate('sourceMessageId');
+    const opportunity = await Opportunity.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+    }).populate('sourceMessageId');
 
     if (!opportunity) {
       return res.status(404).json({ success: false, message: 'Opportunity not found' });
@@ -51,7 +54,10 @@ const getOpportunityById = async (req, res, next) => {
 // @access  Private
 const deleteOpportunity = async (req, res, next) => {
   try {
-    const opportunity = await Opportunity.findById(req.params.id);
+    const opportunity = await Opportunity.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+    });
 
     if (!opportunity) {
       return res.status(404).json({ success: false, message: 'Opportunity not found' });

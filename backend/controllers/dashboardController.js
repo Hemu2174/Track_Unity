@@ -7,13 +7,15 @@ const getDashboard = async (req, res, next) => {
   try {
     const now = new Date();
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const userFilter = { userId: req.user._id };
 
     const [totalOpportunities, upcomingDeadlines, recentOpportunities] = await Promise.all([
       // Total count
-      Opportunity.countDocuments(),
+      Opportunity.countDocuments(userFilter),
 
       // Deadlines within the next 7 days
       Opportunity.find({
+        ...userFilter,
         deadline: { $gte: now, $lte: sevenDaysFromNow },
       })
         .select('title company deadline applicationLink')
@@ -21,7 +23,7 @@ const getDashboard = async (req, res, next) => {
         .limit(10),
 
       // Most recently added opportunities
-      Opportunity.find()
+      Opportunity.find(userFilter)
         .select('title company role domain deadline sourceMessageId createdAt')
         .sort({ createdAt: -1 })
         .limit(5),

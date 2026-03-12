@@ -22,6 +22,12 @@ const rawMessageSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
     processed: {
       type: Boolean,
       default: false,

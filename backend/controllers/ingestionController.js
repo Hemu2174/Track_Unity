@@ -1,6 +1,7 @@
 const fs = require('fs');
 const Opportunity = require('../models/Opportunity');
 const RawMessage = require('../models/RawMessage');
+const UserProfile = require('../models/UserProfile');
 const { extractTextFromImage } = require('../services/ocrService');
 const { extractOpportunityWithNlp } = require('../services/nlpClientService');
 const { validateOpportunityLink } = require('../services/linkValidator');
@@ -11,12 +12,31 @@ const {
   isTelegramWebhookAuthorized,
 } = require('../services/telegramBotService');
 
-const persistParsedOpportunity = async ({ source, messageText, imageUrl = null, telegramUserId = null }) => {
+const resolveUserIdFromTelegram = async (telegramUserId) => {
+  if (!telegramUserId) {
+    return null;
+  }
+
+  const profile = await UserProfile.findOne({ telegramUserId: String(telegramUserId) })
+    .select('userId')
+    .lean();
+
+  return profile?.userId || null;
+};
+
+const persistParsedOpportunity = async ({
+  source,
+  messageText,
+  imageUrl = null,
+  telegramUserId = null,
+  userId = null,
+}) => {
   const rawMessage = await RawMessage.create({
     source,
     messageText,
     imageUrl,
     telegramUserId,
+    userId,
     processed: false,
   });
 
@@ -46,13 +66,14 @@ const persistParsedOpportunity = async ({ source, messageText, imageUrl = null, 
     riskLevel: riskResult.riskLevel,
     confidenceScore: parsed.confidenceScore || 0,
     description: parsed.description,
+    userId,
     sourceMessageId: rawMessage._id,
   });
 
   rawMessage.processed = true;
   await rawMessage.save();
 
-  await updateRecommendationsForOpportunity(opportunity);
+  await updateRecommendationsForOpportunity(opportunity, userId);
 
   return { rawMessage, parsed, opportunity };
 };
@@ -69,6 +90,7 @@ const ingestText = async (req, res, next) => {
     const result = await persistParsedOpportunity({
       source: 'dashboard',
       messageText: message,
+      userId: req.user?._id || null,
     });
 
     return res.status(201).json({
@@ -99,6 +121,7 @@ const ingestImage = async (req, res, next) => {
       source: 'image',
       messageText: extractedText,
       imageUrl,
+      userId: req.user?._id || null,
     });
 
     return res.status(201).json({
@@ -135,10 +158,13 @@ const ingestTelegram = async (req, res, next) => {
       return res.status(200).json({ success: true, message: 'Telegram update ignored: no text content' });
     }
 
+    const resolvedUserId = await resolveUserIdFromTelegram(telegramUserId);
+
     const result = await persistParsedOpportunity({
       source: 'telegram',
       messageText,
       telegramUserId,
+      userId: resolvedUserId,
     });
 
     return res.status(201).json({

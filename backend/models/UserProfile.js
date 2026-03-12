@@ -23,6 +23,12 @@ const userProfileSchema = new mongoose.Schema(
     preferredRole: { type: String, trim: true },
     careerGoal: { type: String, trim: true },
     jobPreference: { type: String, trim: true },
+    telegramUserId: {
+      type: String,
+      trim: true,
+      unique: true,
+      sparse: true,
+    },
     skills: [{ type: String, trim: true }],
     education: [educationSchema],
     onboardingCompleted: { type: Boolean, default: false },

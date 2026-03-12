@@ -56,6 +56,12 @@ const DashboardPage = () => {
 
   useEffect(() => {
     fetchDashboardData()
+
+    const pollId = setInterval(() => {
+      fetchDashboardData()
+    }, 10000)
+
+    return () => clearInterval(pollId)
   }, [])
 
   const fetchDashboardData = async () => {

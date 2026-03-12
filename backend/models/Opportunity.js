@@ -30,6 +30,12 @@ const opportunitySchema = new mongoose.Schema(
     },
     confidenceScore: { type: Number, default: 0 },
     description: { type: String, trim: true },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
     sourceMessageId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'RawMessage',
