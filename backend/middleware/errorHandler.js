@@ -23,6 +23,13 @@ const errorHandler = (err, req, res, next) => {
     statusCode = 404;
   }
 
+  if (statusCode >= 500) {
+    console.error(`[${req.method} ${req.originalUrl}] ${message}`);
+    if (err.stack) {
+      console.error(err.stack);
+    }
+  }
+
   res.status(statusCode).json({
     success: false,
     message,

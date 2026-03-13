@@ -59,10 +59,15 @@ const getMyProfile = async (req, res, next) => {
     const profile = await UserProfile.findOne({ userId: req.user._id }).populate('userId', 'name email');
 
     if (!profile) {
-      return res.status(404).json({ success: false, message: 'Profile not found. Please complete onboarding.' });
+      return res.status(200).json({
+        success: true,
+        profile: null,
+        onboardingCompleted: false,
+        message: 'Profile not found. Please complete onboarding.',
+      });
     }
 
-    res.status(200).json({ success: true, profile });
+    res.status(200).json({ success: true, profile, onboardingCompleted: Boolean(profile.onboardingCompleted) });
   } catch (error) {
     next(error);
   }
