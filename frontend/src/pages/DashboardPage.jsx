@@ -38,7 +38,7 @@ const DashboardPage = () => {
 
   const [activeCategory, setActiveCategory] = useState('All')
   const [opportunities, setOpportunities] = useState([])
-  const [stats, setStats] = useState(null)
+  const [stats, setStats] = useState({ total: 0, upcoming: 0, applied: 0 })
   const [upcomingDeadlines, setUpcomingDeadlines] = useState([])
   const [loading, setLoading] = useState(true)
   const [recommendations, setRecommendations] = useState([])
@@ -72,7 +72,9 @@ const DashboardPage = () => {
         getOpportunities(),
         getRecommendations(),
       ])
-      const { totalOpportunities, upcomingDeadlines: upcoming } = dashboardRes.dashboard
+      const dashboard = dashboardRes?.dashboard || {}
+      const totalOpportunities = Number(dashboard.totalOpportunities || 0)
+      const upcoming = Array.isArray(dashboard.upcomingDeadlines) ? dashboard.upcomingDeadlines : []
       setStats({ total: totalOpportunities, upcoming: upcoming.length, applied: 0 })
       setUpcomingDeadlines(upcoming)
       setOpportunities(oppsRes.opportunities || [])

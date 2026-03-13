@@ -4,14 +4,17 @@ import { Maximize2, ChevronDown } from 'lucide-react';
 const now = () => new Date();
 
 const AdvancedStats = ({ opportunities = [], stats = {} }) => {
-  const expired = opportunities.filter(
+  const safeOpportunities = Array.isArray(opportunities) ? opportunities : [];
+  const safeStats = stats ?? {};
+
+  const expired = safeOpportunities.filter(
     (o) => o.deadline && new Date(o.deadline) < now()
   ).length;
 
   const rows = [
-    { label: 'Total Opportunities', value: stats.total ?? opportunities.length },
-    { label: 'Upcoming Deadlines', value: stats.upcoming ?? 0 },
-    { label: 'Applied', value: stats.applied ?? 0 },
+    { label: 'Total Opportunities', value: safeStats.total ?? safeOpportunities.length },
+    { label: 'Upcoming Deadlines', value: safeStats.upcoming ?? 0 },
+    { label: 'Applied', value: safeStats.applied ?? 0 },
     { label: 'Expired', value: expired },
   ];
 
