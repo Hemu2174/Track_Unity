@@ -4,7 +4,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import requests
 from fastapi import FastAPI
 from pydantic import BaseModel
 
@@ -270,14 +269,6 @@ def extract(req: ExtractRequest) -> Dict[str, Any]:
     deadline = normalize_deadline(ent_date, cleaned)
     skills = extract_skills(cleaned)
     link = pick_best_link(regex_items["links"])
-
-    if link and is_valid_url(link):
-        try:
-            response = requests.get(link, timeout=3)
-            if response.status_code >= 400:
-                link = None
-        except Exception:
-            pass
 
     result = {
         "title": title,

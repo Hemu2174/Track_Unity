@@ -15,7 +15,6 @@ import {
 import DashboardHeader from '../components/DashboardHeader'
 import StatsCards from '../components/StatsCards'
 import OpportunityFeed from '../components/OpportunityFeed'
-import CategoryFilters from '../components/CategoryFilters'
 import QuickAddOpportunity from '../components/QuickAddOpportunity'
 import NotificationsPanel from '../components/NotificationsPanel'
 import DeadlineTracker from '../components/DeadlineTracker'
@@ -27,6 +26,15 @@ import { getDashboard } from '../services/dashboardApi'
 import { getOpportunities, extractOpportunity, uploadPosterImage } from '../services/opportunityApi'
 import { getRecommendations } from '../services/recommendationApi'
 
+const normalizeDate = (value) => {
+  if (!value) {
+    return null
+  }
+
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
 const DashboardPage = () => {
   const navigate = useNavigate()
   const { logout, user } = useAuth()
@@ -36,65 +44,138 @@ const DashboardPage = () => {
     navigate('/login')
   }
 
-  const [activeCategory, setActiveCategory] = useState('All')
   const [opportunities, setOpportunities] = useState([])
   const [stats, setStats] = useState({ total: 0, upcoming: 0, applied: 0 })
   const [upcomingDeadlines, setUpcomingDeadlines] = useState([])
   const [loading, setLoading] = useState(true)
   const [recommendations, setRecommendations] = useState([])
+  const [latestExtracted, setLatestExtracted] = useState(null)
 
-  const filteredOpportunities = activeCategory === 'All'
-    ? opportunities
-    : opportunities.filter((o) => {
-        const key = activeCategory.toLowerCase().slice(0, -1)
-        return (
-          (o.domain || '').toLowerCase().includes(key) ||
-          (o.role || '').toLowerCase().includes(key) ||
-          (o.title || '').toLowerCase().includes(key)
-        )
+  const applyOpportunityToState = (opportunity) => {
+    if (!opportunity?._id) {
+      return
+    }
+
+    setOpportunities((current) => {
+      const existing = Array.isArray(current) ? current : []
+      const deduped = existing.filter((item) => item?._id !== opportunity._id)
+      return [opportunity, ...deduped]
+    })
+
+    setStats((current) => {
+      const safeCurrent = current ?? { total: 0, upcoming: 0, applied: 0 }
+      return {
+        ...safeCurrent,
+        total: Math.max(Number(safeCurrent.total || 0) + 1, 1),
+      }
+    })
+
+    const deadline = normalizeDate(opportunity.deadline)
+    const now = new Date()
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+
+    if (deadline && deadline >= now && deadline <= sevenDaysFromNow) {
+      setUpcomingDeadlines((current) => {
+        const existing = Array.isArray(current) ? current : []
+        const deduped = existing.filter((item) => item?._id !== opportunity._id)
+        const next = [opportunity, ...deduped].sort((left, right) => {
+          const leftDate = normalizeDate(left?.deadline)?.getTime() || 0
+          const rightDate = normalizeDate(right?.deadline)?.getTime() || 0
+          return leftDate - rightDate
+        })
+        return next.slice(0, 10)
       })
+
+      setStats((current) => {
+        const safeCurrent = current ?? { total: 0, upcoming: 0, applied: 0 }
+        return {
+          ...safeCurrent,
+          upcoming: Number(safeCurrent.upcoming || 0) + 1,
+        }
+      })
+    }
+  }
 
   useEffect(() => {
     fetchDashboardData()
 
     const pollId = setInterval(() => {
-      fetchDashboardData()
+      fetchDashboardData({ background: true })
     }, 10000)
 
     return () => clearInterval(pollId)
   }, [])
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async ({ background = false } = {}) => {
     try {
-      setLoading(true)
-      const [dashboardRes, oppsRes, recRes] = await Promise.all([
+      if (!background) {
+        setLoading(true)
+      }
+      const [dashboardResult, opportunitiesResult, recommendationsResult] = await Promise.allSettled([
         getDashboard(),
         getOpportunities(),
         getRecommendations(),
       ])
-      const dashboard = dashboardRes?.dashboard || {}
-      const totalOpportunities = Number(dashboard.totalOpportunities || 0)
-      const upcoming = Array.isArray(dashboard.upcomingDeadlines) ? dashboard.upcomingDeadlines : []
-      setStats({ total: totalOpportunities, upcoming: upcoming.length, applied: 0 })
-      setUpcomingDeadlines(upcoming)
-      setOpportunities(oppsRes.opportunities || [])
-      setRecommendations(recRes.data || [])
+
+      if (dashboardResult.status === 'fulfilled') {
+        const dashboard = dashboardResult.value?.dashboard || {}
+        const totalOpportunities = Number(dashboard.totalOpportunities || 0)
+        const upcoming = Array.isArray(dashboard.upcomingDeadlines) ? dashboard.upcomingDeadlines : []
+        setStats({ total: totalOpportunities, upcoming: upcoming.length, applied: 0 })
+        setUpcomingDeadlines(upcoming)
+      }
+
+      if (opportunitiesResult.status === 'fulfilled') {
+        setOpportunities(opportunitiesResult.value?.opportunities || [])
+      }
+
+      if (recommendationsResult.status === 'fulfilled') {
+        setRecommendations(recommendationsResult.value?.data || [])
+      }
     } catch (e) {
       console.error('Dashboard fetch error:', e)
     } finally {
-      setLoading(false)
+      if (!background) {
+        setLoading(false)
+      }
     }
   }
 
   const handleExtractWithAI = async (message) => {
     if (!message) return
-    await extractOpportunity(message)
-    await fetchDashboardData()
+    const result = await extractOpportunity(message)
+
+    if (result?.extracted) {
+      setLatestExtracted({
+        _id: `preview-${Date.now()}`,
+        title: result.extracted.title || 'Opportunity',
+        company: result.extracted.company || 'Unknown Company',
+        role: result.extracted.role || null,
+        domain: result.extracted.domain || null,
+        deadline: result.extracted.deadline || null,
+        eligibility: result.extracted.eligibility || null,
+        skills: result.extracted.skills || [],
+        applicationLink: result.extracted.applicationLink || null,
+        riskLevel: result.opportunity?.riskLevel || null,
+        linkStatus: result.opportunity?.linkStatus || null,
+        confidenceScore: result.extracted.confidenceScore,
+      })
+    }
+
+    if (result?.opportunity) {
+      applyOpportunityToState(result.opportunity)
+    }
+
+    void fetchDashboardData({ background: true })
   }
 
   const handleImageUpload = async (file) => {
-    await uploadPosterImage(file)
-    await fetchDashboardData()
+    const result = await uploadPosterImage(file)
+    if (result?.opportunity) {
+      applyOpportunityToState(result.opportunity)
+    }
+
+    void fetchDashboardData({ background: true })
   }
 
   return (
@@ -158,14 +239,8 @@ const DashboardPage = () => {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <OpportunityFeed opportunities={filteredOpportunities} loading={loading} />
+            <OpportunityFeed opportunities={opportunities} loading={loading} extractedPreview={latestExtracted} />
           </motion.div>
-
-          <CategoryFilters
-            activeCategory={activeCategory}
-            onCategoryChange={setActiveCategory}
-            opportunities={opportunities}
-          />
 
           <QuickAddOpportunity 
             onExtract={handleExtractWithAI} 

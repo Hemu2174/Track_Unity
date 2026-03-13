@@ -10,6 +10,7 @@ const { assessOpportunityRisk } = require('../services/fakeDetector');
 const {
   normalizeTelegramWebhookPayload,
   isTelegramWebhookAuthorized,
+  sendTelegramMessage,
 } = require('../services/telegramBotService');
 
 const resolveUserIdFromTelegram = async (telegramUserId) => {
@@ -73,7 +74,12 @@ const persistParsedOpportunity = async ({
   rawMessage.processed = true;
   await rawMessage.save();
 
-  await updateRecommendationsForOpportunity(opportunity, userId);
+  setImmediate(() => {
+    updateRecommendationsForOpportunity(opportunity, userId)
+      .catch((error) => {
+        console.error(`Recommendation update failed: ${error.message}`);
+      });
+  });
 
   return { rawMessage, parsed, opportunity };
 };
@@ -147,11 +153,13 @@ const ingestTelegram = async (req, res, next) => {
 
     let messageText = req.body?.messageText;
     let telegramUserId = req.body?.telegramUserId ? String(req.body.telegramUserId) : null;
+    let telegramChatId = req.body?.telegramChatId ? String(req.body.telegramChatId) : null;
 
     if (hasRawTelegramUpdate) {
       const normalized = normalizeTelegramWebhookPayload(req.body);
       messageText = normalized.messageText;
       telegramUserId = normalized.telegramUserId;
+      telegramChatId = normalized.telegramChatId;
     }
 
     if (!messageText) {
@@ -166,6 +174,13 @@ const ingestTelegram = async (req, res, next) => {
       telegramUserId,
       userId: resolvedUserId,
     });
+
+    if (hasRawTelegramUpdate && telegramChatId) {
+      void sendTelegramMessage(telegramChatId, 'Opportunity received and added to your dashboard.')
+        .catch((error) => {
+          console.error(`Telegram acknowledgement failed: ${error.message}`);
+        });
+    }
 
     return res.status(201).json({
       success: true,

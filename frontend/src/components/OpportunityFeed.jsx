@@ -2,11 +2,18 @@ import React from 'react';
 import { Inbox } from 'lucide-react';
 import OpportunityCard from './OpportunityCard';
 
-const OpportunityFeed = ({ opportunities = [], loading = false }) => (
+const OpportunityFeed = ({ opportunities = [], loading = false, extractedPreview = null }) => (
   <div className="space-y-6">
     <h3 className="text-xl font-bold text-slate-900 font-outfit">Opportunity Feed</h3>
     <div className="space-y-5">
-      {loading ? (
+      {extractedPreview && (
+        <div className="bg-blue-50 border border-blue-200 rounded-[24px] p-4">
+          <p className="text-xs uppercase tracking-widest text-blue-700 font-black mb-3">Latest Extracted Data</p>
+          <OpportunityCard opportunity={extractedPreview} />
+        </div>
+      )}
+
+      {loading && opportunities.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-[32px] border border-slate-200">
           <p className="text-slate-400 font-medium animate-pulse">Loading opportunities…</p>
         </div>
