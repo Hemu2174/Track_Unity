@@ -46,15 +46,24 @@ const validateOpportunityLink = async (inputUrl) => {
       validateStatus: () => true,
     });
 
-    if (response.status === 200 || response.status === 302) {
+    // 2xx → valid
+    if (response.status >= 200 && response.status < 300) {
       return { linkStatus: 'valid', normalizedUrl: normalized, reason: `status-${response.status}` };
     }
 
-    if (response.status >= 300 && response.status < 500) {
-      return { linkStatus: 'suspicious', normalizedUrl: normalized, reason: `status-${response.status}` };
+    // 404 / 410 → definitively broken (page does not exist)
+    if (response.status === 404 || response.status === 410) {
+      return { linkStatus: 'broken', normalizedUrl: normalized, reason: `status-${response.status}` };
     }
 
-    return { linkStatus: 'broken', normalizedUrl: normalized, reason: `status-${response.status}` };
+    // 5xx server errors → broken
+    if (response.status >= 500) {
+      return { linkStatus: 'broken', normalizedUrl: normalized, reason: `status-${response.status}` };
+    }
+
+    // 3xx redirects (shouldn't reach here with maxRedirects, but just in case)
+    // 401 / 403 / 429 / other 4xx → suspicious (auth-gated or rate-limited, not necessarily gone)
+    return { linkStatus: 'suspicious', normalizedUrl: normalized, reason: `status-${response.status}` };
   } catch (error) {
     return { linkStatus: 'broken', normalizedUrl: normalized, reason: 'request-failed' };
   }

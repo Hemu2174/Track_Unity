@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Settings, SlidersHorizontal, AlertTriangle, Bell } from 'lucide-react';
 
 const getDaysLeft = (isoDate) => {
@@ -6,11 +6,37 @@ const getDaysLeft = (isoDate) => {
   return Math.ceil((new Date(isoDate) - new Date()) / (1000 * 60 * 60 * 24));
 };
 
-const NotificationsPanel = ({ opportunities = [] }) => {
-  const notifications = opportunities
+const NotificationFilterButton = ({ active, onClick, label }) => (
+  <button
+    onClick={onClick}
+    className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-colors ${
+      active ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+    }`}
+  >
+    {label}
+  </button>
+);
+
+const NotificationsPanel = ({ opportunities = [], deadlines = [] }) => {
+  const [activeFilter, setActiveFilter] = useState('5d');
+
+  const sourceItems = useMemo(() => {
+    const fromDeadlines = Array.isArray(deadlines) ? deadlines : [];
+    if (fromDeadlines.length > 0) {
+      return fromDeadlines;
+    }
+    return Array.isArray(opportunities) ? opportunities : [];
+  }, [deadlines, opportunities]);
+
+  const notifications = useMemo(() => sourceItems
     .filter((opp) => {
       const d = getDaysLeft(opp.deadline);
-      return d >= 0 && d <= 5;
+
+      if (d < 0) return false;
+      if (activeFilter === 'today') return d === 0;
+      if (activeFilter === '3d') return d <= 3;
+      if (activeFilter === '5d') return d <= 5;
+      return d <= 14;
     })
     .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
     .slice(0, 5)
@@ -18,7 +44,7 @@ const NotificationsPanel = ({ opportunities = [] }) => {
       const d = getDaysLeft(opp.deadline);
       const subtitle = d === 0 ? 'Deadline: today!' : d === 1 ? 'Deadline: tomorrow' : `Deadline: ${d} days`;
       return { title: opp.title || opp.company, subtitle };
-    });
+    }), [activeFilter, sourceItems]);
 
   return (
     <div className="bg-white border border-slate-200 rounded-[32px] shadow-sm overflow-hidden mb-7">
@@ -28,6 +54,12 @@ const NotificationsPanel = ({ opportunities = [] }) => {
           <Settings size={16} className="text-slate-400 cursor-pointer hover:text-blue-500 transition-colors" />
           <SlidersHorizontal size={16} className="text-slate-400 cursor-pointer hover:text-blue-500 transition-colors" />
         </div>
+      </div>
+      <div className="px-4 pt-3 flex gap-2 flex-wrap">
+        <NotificationFilterButton label="Today" active={activeFilter === 'today'} onClick={() => setActiveFilter('today')} />
+        <NotificationFilterButton label="3 Days" active={activeFilter === '3d'} onClick={() => setActiveFilter('3d')} />
+        <NotificationFilterButton label="5 Days" active={activeFilter === '5d'} onClick={() => setActiveFilter('5d')} />
+        <NotificationFilterButton label="2 Weeks" active={activeFilter === '14d'} onClick={() => setActiveFilter('14d')} />
       </div>
       <div className="p-2 space-y-1">
         {notifications.length === 0 ? (

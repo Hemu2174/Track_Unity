@@ -35,6 +35,54 @@ const normalizeDate = (value) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
+const matchesSearch = (opportunity, searchText) => {
+  const keyword = String(searchText || '').trim().toLowerCase()
+  if (!keyword) {
+    return true
+  }
+
+  const haystack = [
+    opportunity?.title,
+    opportunity?.company,
+    opportunity?.role,
+    opportunity?.domain,
+    opportunity?.eligibility,
+    ...(Array.isArray(opportunity?.skills) ? opportunity.skills : []),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  return haystack.includes(keyword)
+}
+
+const dedupeKeyForOpportunity = (opportunity) => {
+  const title = String(opportunity?.title || '').trim().toLowerCase()
+  const company = String(opportunity?.company || '').trim().toLowerCase()
+  const role = String(opportunity?.role || '').trim().toLowerCase()
+  const link = String(opportunity?.applicationLink || '').trim().toLowerCase()
+  const deadline = normalizeDate(opportunity?.deadline)?.toISOString() || ''
+
+  if (link) {
+    return `${link}::${title}`
+  }
+
+  return `${title}::${company}::${role}::${deadline}`
+}
+
+const dedupeOpportunities = (list = []) => {
+  const unique = new Map()
+
+  for (const opportunity of list) {
+    const key = dedupeKeyForOpportunity(opportunity)
+    if (!unique.has(key)) {
+      unique.set(key, opportunity)
+    }
+  }
+
+  return Array.from(unique.values())
+}
+
 const DashboardPage = () => {
   const navigate = useNavigate()
   const { logout, user } = useAuth()
@@ -45,6 +93,7 @@ const DashboardPage = () => {
   }
 
   const [opportunities, setOpportunities] = useState([])
+  const [searchText, setSearchText] = useState('')
   const [stats, setStats] = useState({ total: 0, upcoming: 0, applied: 0 })
   const [upcomingDeadlines, setUpcomingDeadlines] = useState([])
   const [loading, setLoading] = useState(true)
@@ -56,25 +105,30 @@ const DashboardPage = () => {
       return
     }
 
+    const currentList = Array.isArray(opportunities) ? opportunities : []
+    const wasAlreadyPresent = currentList.some((item) => item?._id === opportunity._id)
+
     setOpportunities((current) => {
       const existing = Array.isArray(current) ? current : []
       const deduped = existing.filter((item) => item?._id !== opportunity._id)
       return [opportunity, ...deduped]
     })
 
-    setStats((current) => {
-      const safeCurrent = current ?? { total: 0, upcoming: 0, applied: 0 }
-      return {
-        ...safeCurrent,
-        total: Math.max(Number(safeCurrent.total || 0) + 1, 1),
-      }
-    })
+    if (!wasAlreadyPresent) {
+      setStats((current) => {
+        const safeCurrent = current ?? { total: 0, upcoming: 0, applied: 0 }
+        return {
+          ...safeCurrent,
+          total: Math.max(Number(safeCurrent.total || 0) + 1, 1),
+        }
+      })
+    }
 
     const deadline = normalizeDate(opportunity.deadline)
     const now = new Date()
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
 
-    if (deadline && deadline >= now && deadline <= sevenDaysFromNow) {
+    if (!wasAlreadyPresent && deadline && deadline >= now && deadline <= sevenDaysFromNow) {
       setUpcomingDeadlines((current) => {
         const existing = Array.isArray(current) ? current : []
         const deduped = existing.filter((item) => item?._id !== opportunity._id)
@@ -95,6 +149,10 @@ const DashboardPage = () => {
       })
     }
   }
+
+  const visibleOpportunities = dedupeOpportunities(opportunities).filter((opportunity) => (
+    matchesSearch(opportunity, searchText)
+  ))
 
   useEffect(() => {
     fetchDashboardData()
@@ -126,7 +184,7 @@ const DashboardPage = () => {
       }
 
       if (opportunitiesResult.status === 'fulfilled') {
-        setOpportunities(opportunitiesResult.value?.opportunities || [])
+        setOpportunities(dedupeOpportunities(opportunitiesResult.value?.opportunities || []))
       }
 
       if (recommendationsResult.status === 'fulfilled') {
@@ -190,6 +248,8 @@ const DashboardPage = () => {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
             <input 
               placeholder="Search opportunities"
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
               className="w-full bg-[#FAFAFA] border border-slate-200 rounded-xl py-2.5 pl-11 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:bg-white transition-all text-sm font-medium"
             />
             <button className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-slate-100 rounded-lg text-slate-400">
@@ -239,7 +299,7 @@ const DashboardPage = () => {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <OpportunityFeed opportunities={opportunities} loading={loading} extractedPreview={latestExtracted} />
+            <OpportunityFeed opportunities={visibleOpportunities} loading={loading} extractedPreview={latestExtracted} />
           </motion.div>
 
           <QuickAddOpportunity 
@@ -255,7 +315,7 @@ const DashboardPage = () => {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 }}
           >
-            <NotificationsPanel opportunities={opportunities} />
+            <NotificationsPanel opportunities={opportunities} deadlines={upcomingDeadlines} />
             <DeadlineTracker deadlines={upcomingDeadlines} />
             <AdvancedStats opportunities={opportunities} stats={stats} />
             <RecommendationPanel recommendations={recommendations} />

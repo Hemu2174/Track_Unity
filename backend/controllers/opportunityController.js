@@ -1,4 +1,5 @@
 const Opportunity = require('../models/Opportunity');
+const { validateOpportunityLink } = require('../services/linkValidator');
 
 // @desc    Get all opportunities
 // @route   GET /api/opportunities
@@ -71,4 +72,29 @@ const deleteOpportunity = async (req, res, next) => {
   }
 };
 
-module.exports = { getAllOpportunities, getOpportunityById, deleteOpportunity };
+// @desc    Re-check the link status of an opportunity
+// @route   PATCH /api/opportunities/:id/revalidate-link
+// @access  Private
+const revalidateLink = async (req, res, next) => {
+  try {
+    const opportunity = await Opportunity.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+    });
+
+    if (!opportunity) {
+      return res.status(404).json({ success: false, message: 'Opportunity not found' });
+    }
+
+    const { linkStatus, normalizedUrl, reason } = await validateOpportunityLink(opportunity.applicationLink);
+    opportunity.linkStatus = linkStatus;
+    if (normalizedUrl) opportunity.applicationLink = normalizedUrl;
+    await opportunity.save();
+
+    res.status(200).json({ success: true, linkStatus, reason, opportunity });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getAllOpportunities, getOpportunityById, deleteOpportunity, revalidateLink };

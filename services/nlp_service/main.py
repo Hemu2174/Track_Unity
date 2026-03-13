@@ -121,7 +121,14 @@ def extract_skills(text: str) -> List[str]:
     lowered = text.lower()
     found = []
     for skill in SKILLS_DB:
-        if skill.lower() in lowered:
+        skill_token = str(skill).strip().lower()
+        if not skill_token:
+            continue
+
+        escaped = re.escape(skill_token)
+        pattern = rf"(?<![a-z0-9]){escaped}(?![a-z0-9])"
+
+        if re.search(pattern, lowered):
             found.append(skill)
     return sorted(set(found))
 
@@ -136,6 +143,13 @@ def detect_opportunity_type(text: str) -> str:
 
 def detect_title(text: str, company: Optional[str], opportunity_type: str) -> str:
     base = company or "General"
+
+    if re.search(r"\bhiring\s+challenge\b", text, flags=re.IGNORECASE):
+        return f"{base} Hiring Challenge".strip()
+
+    if re.search(r"\bfresher\s+hiring\b", text, flags=re.IGNORECASE):
+        return f"{base} Fresher Hiring".strip()
+
     title_match = re.search(
         r"([A-Z][A-Za-z0-9&.,'\- ]+?)\s+(internship|hackathon|fellowship|scholarship)",
         text,
@@ -150,11 +164,21 @@ def detect_title(text: str, company: Optional[str], opportunity_type: str) -> st
 
 def normalize_deadline(raw_date: Optional[str], text: str) -> Optional[str]:
     candidates = []
+
+    # Prefer explicit registration/apply deadlines over other dates in the post.
+    high_priority_patterns = [
+        r"(?:last date(?:\s+to\s+register)?|register by|apply by|deadline)\s*[:\-]?\s*(\d{1,2}\s+[A-Za-z]+(?:\s+\d{4})?|[A-Za-z]+\s+\d{1,2}(?:,\s*\d{4})?|\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{2,4})",
+    ]
+    for pattern in high_priority_patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            candidates.append(match.group(1))
+
     if raw_date:
         candidates.append(raw_date)
 
     regex_candidate = re.search(
-        r"(?:deadline|last date|apply by|closes? on)\s*[:\-]?\s*([A-Za-z]+\s+\d{1,2}(?:,\s*\d{4})?|\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{2,4})",
+        r"(?:deadline|last date(?:\s+to\s+register)?|apply by|closes? on|register by)\s*[:\-]?\s*(\d{1,2}\s+[A-Za-z]+(?:\s+\d{4})?|[A-Za-z]+\s+\d{1,2}(?:,\s*\d{4})?|\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{2,4})",
         text,
         flags=re.IGNORECASE,
     )
@@ -163,6 +187,10 @@ def normalize_deadline(raw_date: Optional[str], text: str) -> Optional[str]:
 
     formats = [
         "%Y-%m-%d",
+        "%d %B %Y",
+        "%d %b %Y",
+        "%d %B",
+        "%d %b",
         "%B %d, %Y",
         "%B %d",
         "%b %d, %Y",
@@ -188,6 +216,14 @@ def normalize_deadline(raw_date: Optional[str], text: str) -> Optional[str]:
 
 
 def infer_role(text: str, detected_type: str) -> str:
+    detailed_role_match = re.search(
+        r"(?:role|position)\s*[:\-]\s*(.+?)(?=\s+(?:experience|qualification|salary|location|challenge|selection process|apply here)\b|$)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if detailed_role_match:
+        return re.sub(r"\s+", " ", detailed_role_match.group(1)).strip(" -:")
+
     role_match = re.search(
         r"\b(internship|intern|engineer|developer|analyst|researcher|fellow|scholar)\b",
         text,
@@ -202,6 +238,22 @@ def infer_role(text: str, detected_type: str) -> str:
 
 
 def extract_eligibility(text: str) -> Optional[str]:
+    qualification_match = re.search(
+        r"(?:qualification|qualifications?)\s*[:\-]\s*(.+?)(?=\s+(?:experience|salary|location|selection process|apply here|last date|deadline|challenge start|register by|join)\b|$)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if qualification_match:
+        return re.sub(r"\s+", " ", qualification_match.group(1)).strip(" -:")
+
+    experience_match = re.search(
+        r"(?:experience)\s*[:\-]\s*([0-9]+\s*[–\-]\s*[0-9]+\s*years?)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if experience_match:
+        return experience_match.group(1).strip()
+
     eligibility_patterns = [
         r"(?:eligible|eligibility|open to|for)\s*[:\-]?\s*([^.!\n]+)",
         r"(\d(?:st|nd|rd|th)\s+year\s+students?)",
@@ -218,6 +270,48 @@ def pick_best_link(links: List[str]) -> Optional[str]:
         normalized = link.strip().rstrip('.,)')
         if is_valid_url(normalized):
             return normalized
+    return None
+
+
+def extract_company_from_text(text: str, fallback_company: Optional[str]) -> Optional[str]:
+    stop_tokens = {
+        "fresher", "hiring", "opportunity", "resume", "shortlisting", "through", "challenge",
+        "no", "urgent", "walkin", "walk-in",
+    }
+
+    sentence_hiring_match = re.search(
+        r"(?:^|[.!?]\s+)([A-Z][A-Za-z0-9&.\-]*(?:\s+[A-Z][A-Za-z0-9&.\-]*){0,3})\s+is\s+hiring\b",
+        text,
+    )
+    if sentence_hiring_match:
+        candidate = sentence_hiring_match.group(1).strip()
+        words = [word for word in candidate.split() if word.lower() not in stop_tokens]
+        if words:
+            return " ".join(words[-2:]) if len(words) > 2 else " ".join(words)
+
+    hiring_match = re.search(r"\b([A-Z][A-Za-z0-9&.\-]*)\s+is\s+hiring\b", text)
+    if hiring_match:
+        return hiring_match.group(1).strip()
+
+    at_match = re.search(r"\b(?:hiring|opportunity)\s+(?:at|with)\s+([A-Z][A-Za-z0-9&.\- ]{1,60})\b", text, flags=re.IGNORECASE)
+    if at_match:
+        return at_match.group(1).strip()
+
+    return fallback_company
+
+
+def infer_domain(text: str, role: Optional[str], skills: List[str]) -> Optional[str]:
+    lowered = text.lower()
+    role_text = (role or "").lower()
+    combined = " ".join([lowered, role_text, " ".join(skills).lower()])
+
+    if any(token in combined for token in ["java", "software engineer", "developer", "coding", "backend", "frontend"]):
+        return "Software Engineering"
+    if any(token in combined for token in ["machine learning", "deep learning", "ai", "nlp", "data science"]):
+        return "AI/ML"
+    if any(token in combined for token in ["security", "cyber", "penetration", "vulnerability"]):
+        return "Cybersecurity"
+
     return None
 
 
@@ -264,16 +358,20 @@ def extract(req: ExtractRequest) -> Dict[str, Any]:
     if "<html" in cleaned.lower():
         cleaned = html_to_text(cleaned)
 
+    company = extract_company_from_text(cleaned, company)
     opportunity_type = detect_opportunity_type(cleaned)
     title = detect_title(cleaned, company, opportunity_type)
     deadline = normalize_deadline(ent_date, cleaned)
     skills = extract_skills(cleaned)
+    role = infer_role(cleaned, opportunity_type)
+    domain = infer_domain(cleaned, role, skills)
     link = pick_best_link(regex_items["links"])
 
     result = {
         "title": title,
         "company": company or "Unknown Company",
-        "role": infer_role(cleaned, opportunity_type),
+        "role": role,
+        "domain": domain,
         "deadline": deadline,
         "eligibility": extract_eligibility(cleaned),
         "skills": skills,

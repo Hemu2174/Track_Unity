@@ -23,3 +23,8 @@ export const uploadPosterImage = async (file) => {
   });
   return res.data;
 };
+
+export const revalidateOpportunityLink = async (id) => {
+  const res = await API.patch(`/opportunities/${id}/revalidate-link`);
+  return res.data;
+};

@@ -3,34 +3,36 @@ import { motion } from 'framer-motion';
 import { LayoutGrid, Clock, CheckCircle2 } from 'lucide-react';
 
 const StatsCards = ({ stats }) => {
+  const safeStats = stats || { total: 0, upcoming: 0, applied: 0 };
+
   const cards = [
     { 
       title: 'Total Opportunities', 
-      count: stats?.total || 124, 
+      count: Number(safeStats.total ?? 0), 
       icon: <LayoutGrid size={18} />, 
       color: 'bg-blue-600'
     },
     { 
       title: 'Upcoming Deadlines', 
-      count: stats?.upcoming || 8, 
+      count: Number(safeStats.upcoming ?? 0), 
       icon: <Clock size={18} />, 
       color: 'bg-orange-500'
     },
     { 
       title: 'Applied', 
-      count: stats?.applied || 12, 
+      count: Number(safeStats.applied ?? 0), 
       icon: <CheckCircle2 size={18} />, 
       color: 'bg-green-600'
     },
   ];
 
   return (
-    <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-hide">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
       {cards.map((card, i) => (
         <motion.div 
           key={i} 
           whileHover={{ scale: 1.05 }}
-          className="min-w-[240px] flex-1 bg-white border border-slate-200 rounded-[28px] p-6 shadow-md transition-all group cursor-pointer"
+          className="bg-white border border-slate-200 rounded-[28px] p-6 shadow-md transition-all group cursor-pointer"
         >
           <div className={`w-14 h-10 rounded-xl ${card.color} flex items-center justify-center text-white mb-5 shadow-inner`}>
              {card.icon}
