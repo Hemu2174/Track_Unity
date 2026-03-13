@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Menu, X, ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import ThemeToggle from './ThemeToggle'
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false)
@@ -60,6 +61,7 @@ const Navbar = () => {
             Get Started
             <ArrowRight size={16} />
           </Link>
+          <ThemeToggle />
         </div>
 
         {/* Mobile Toggle */}
@@ -95,6 +97,7 @@ const Navbar = () => {
           >
             Login
           </Link>
+          <ThemeToggle className="self-end" />
           <Link 
             to="/register" 
             className="btn-primary w-full"

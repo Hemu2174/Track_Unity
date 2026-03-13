@@ -20,9 +20,9 @@ import NotificationsPanel from '../components/NotificationsPanel'
 import DeadlineTracker from '../components/DeadlineTracker'
 import RecommendationPanel from '../components/RecommendationPanel'
 import AdvancedStats from '../components/AdvancedStats'
+import ThemeToggle from '../components/ThemeToggle'
 
 // Services
-import { getDashboard } from '../services/dashboardApi'
 import { getOpportunities, extractOpportunity, uploadPosterImage } from '../services/opportunityApi'
 import { getRecommendations } from '../services/recommendationApi'
 
@@ -95,109 +95,50 @@ const DashboardPage = () => {
   const [opportunities, setOpportunities] = useState([])
   const [searchText, setSearchText] = useState('')
   const [stats, setStats] = useState({ total: 0, upcoming: 0, applied: 0 })
-  const [upcomingDeadlines, setUpcomingDeadlines] = useState([])
   const [loading, setLoading] = useState(true)
   const [recommendations, setRecommendations] = useState([])
   const [latestExtracted, setLatestExtracted] = useState(null)
-
-  const applyOpportunityToState = (opportunity) => {
-    if (!opportunity?._id) {
-      return
-    }
-
-    const currentList = Array.isArray(opportunities) ? opportunities : []
-    const wasAlreadyPresent = currentList.some((item) => item?._id === opportunity._id)
-
-    setOpportunities((current) => {
-      const existing = Array.isArray(current) ? current : []
-      const deduped = existing.filter((item) => item?._id !== opportunity._id)
-      return [opportunity, ...deduped]
-    })
-
-    if (!wasAlreadyPresent) {
-      setStats((current) => {
-        const safeCurrent = current ?? { total: 0, upcoming: 0, applied: 0 }
-        return {
-          ...safeCurrent,
-          total: Math.max(Number(safeCurrent.total || 0) + 1, 1),
-        }
-      })
-    }
-
-    const deadline = normalizeDate(opportunity.deadline)
-    const now = new Date()
-    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-
-    if (!wasAlreadyPresent && deadline && deadline >= now && deadline <= sevenDaysFromNow) {
-      setUpcomingDeadlines((current) => {
-        const existing = Array.isArray(current) ? current : []
-        const deduped = existing.filter((item) => item?._id !== opportunity._id)
-        const next = [opportunity, ...deduped].sort((left, right) => {
-          const leftDate = normalizeDate(left?.deadline)?.getTime() || 0
-          const rightDate = normalizeDate(right?.deadline)?.getTime() || 0
-          return leftDate - rightDate
-        })
-        return next.slice(0, 10)
-      })
-
-      setStats((current) => {
-        const safeCurrent = current ?? { total: 0, upcoming: 0, applied: 0 }
-        return {
-          ...safeCurrent,
-          upcoming: Number(safeCurrent.upcoming || 0) + 1,
-        }
-      })
-    }
-  }
 
   const visibleOpportunities = dedupeOpportunities(opportunities).filter((opportunity) => (
     matchesSearch(opportunity, searchText)
   ))
 
-  useEffect(() => {
-    fetchDashboardData()
-
-    const pollId = setInterval(() => {
-      fetchDashboardData({ background: true })
-    }, 10000)
-
-    return () => clearInterval(pollId)
-  }, [])
-
-  const fetchDashboardData = async ({ background = false } = {}) => {
+  const fetchOpportunities = async () => {
     try {
-      if (!background) {
-        setLoading(true)
-      }
-      const [dashboardResult, opportunitiesResult, recommendationsResult] = await Promise.allSettled([
-        getDashboard(),
-        getOpportunities(),
-        getRecommendations(),
-      ])
+      const list = await getOpportunities()
+      const deduped = dedupeOpportunities(Array.isArray(list) ? list : [])
+      setOpportunities(deduped)
 
-      if (dashboardResult.status === 'fulfilled') {
-        const dashboard = dashboardResult.value?.dashboard || {}
-        const totalOpportunities = Number(dashboard.totalOpportunities || 0)
-        const upcoming = Array.isArray(dashboard.upcomingDeadlines) ? dashboard.upcomingDeadlines : []
-        setStats({ total: totalOpportunities, upcoming: upcoming.length, applied: 0 })
-        setUpcomingDeadlines(upcoming)
-      }
+      const now = new Date()
+      const upcoming = deduped.filter((item) => {
+        const deadline = normalizeDate(item?.deadline)
+        return Boolean(deadline && deadline >= now)
+      })
 
-      if (opportunitiesResult.status === 'fulfilled') {
-        setOpportunities(dedupeOpportunities(opportunitiesResult.value?.opportunities || []))
-      }
-
-      if (recommendationsResult.status === 'fulfilled') {
-        setRecommendations(recommendationsResult.value?.data || [])
-      }
+      setStats({ total: deduped.length, upcoming: upcoming.length, applied: 0 })
     } catch (e) {
-      console.error('Dashboard fetch error:', e)
-    } finally {
-      if (!background) {
-        setLoading(false)
-      }
+      console.error('Opportunities fetch error:', e)
     }
   }
+
+  const fetchRecommendations = async () => {
+    try {
+      const response = await getRecommendations()
+      setRecommendations(response?.data || [])
+    } catch (error) {
+      console.error('Recommendations fetch error:', error)
+    }
+  }
+
+  useEffect(() => {
+    const loadDashboard = async () => {
+      setLoading(true)
+      await Promise.all([fetchOpportunities(), fetchRecommendations()])
+      setLoading(false)
+    }
+
+    void loadDashboard()
+  }, [])
 
   const handleExtractWithAI = async (message) => {
     if (!message) return
@@ -220,20 +161,14 @@ const DashboardPage = () => {
       })
     }
 
-    if (result?.opportunity) {
-      applyOpportunityToState(result.opportunity)
-    }
-
-    void fetchDashboardData({ background: true })
+    await fetchOpportunities()
+    void fetchRecommendations()
   }
 
   const handleImageUpload = async (file) => {
-    const result = await uploadPosterImage(file)
-    if (result?.opportunity) {
-      applyOpportunityToState(result.opportunity)
-    }
-
-    void fetchDashboardData({ background: true })
+    await uploadPosterImage(file)
+    await fetchOpportunities()
+    void fetchRecommendations()
   }
 
   return (
@@ -277,6 +212,7 @@ const DashboardPage = () => {
               <LogOut size={16} />
               <span className="hidden md:inline">Logout</span>
             </button>
+            <ThemeToggle />
           </div>
       </nav>
 
@@ -315,8 +251,8 @@ const DashboardPage = () => {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 }}
           >
-            <NotificationsPanel opportunities={opportunities} deadlines={upcomingDeadlines} />
-            <DeadlineTracker deadlines={upcomingDeadlines} />
+            <NotificationsPanel opportunities={opportunities} deadlines={opportunities} />
+            <DeadlineTracker opportunities={opportunities} />
             <AdvancedStats opportunities={opportunities} stats={stats} />
             <RecommendationPanel recommendations={recommendations} />
           </motion.div>

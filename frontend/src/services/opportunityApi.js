@@ -2,7 +2,11 @@ import API from './api';
 
 export const getOpportunities = async (params = {}) => {
   const res = await API.get('/opportunities', { params });
-  return res.data;
+  if (Array.isArray(res.data)) {
+    return res.data;
+  }
+
+  return Array.isArray(res.data?.opportunities) ? res.data.opportunities : [];
 };
 
 export const getOpportunityById = async (id) => {

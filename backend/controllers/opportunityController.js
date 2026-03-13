@@ -24,7 +24,7 @@ const getAllOpportunities = async (req, res, next) => {
       .populate('sourceMessageId')
       .sort({ createdAt: -1 });
 
-    res.status(200).json({ success: true, count: opportunities.length, opportunities });
+    res.status(200).json(opportunities);
   } catch (error) {
     next(error);
   }

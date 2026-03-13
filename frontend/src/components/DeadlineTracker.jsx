@@ -2,15 +2,23 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { SlidersHorizontal } from 'lucide-react';
 
-const FALLBACK = [
-  { title: 'Google Internship', deadline: new Date(Date.now() + 2 * 864e5).toISOString() },
-  { title: 'HackMIT', deadline: new Date(Date.now() + 4 * 864e5).toISOString() },
-  { title: 'Amazon ML', deadline: new Date(Date.now() + 6 * 864e5).toISOString() },
-];
+const calculateUpcomingDeadlines = (opportunities = []) => {
+  const today = new Date();
 
-const getDaysRemaining = (isoDate) => {
-  const diff = new Date(isoDate) - new Date();
-  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  return opportunities
+    .filter((opportunity) => Boolean(opportunity?.deadline))
+    .map((opportunity) => {
+      const deadline = new Date(opportunity.deadline);
+      const diff = Math.ceil((deadline - today) / (1000 * 60 * 60 * 24));
+
+      return {
+        ...opportunity,
+        daysRemaining: diff,
+      };
+    })
+    .filter((opportunity) => !Number.isNaN(opportunity.daysRemaining) && opportunity.daysRemaining >= 0)
+    .sort((left, right) => left.daysRemaining - right.daysRemaining)
+    .slice(0, 5);
 };
 
 const getBarColor = (days) => {
@@ -19,8 +27,8 @@ const getBarColor = (days) => {
   return 'bg-green-400';
 };
 
-const DeadlineTracker = ({ deadlines }) => {
-  const items = (deadlines && deadlines.length > 0 ? deadlines : FALLBACK).slice(0, 5);
+const DeadlineTracker = ({ opportunities = [] }) => {
+  const upcoming = calculateUpcomingDeadlines(opportunities);
 
   return (
     <div className="bg-white border border-slate-200 rounded-[32px] p-7 shadow-sm mb-7">
@@ -29,17 +37,21 @@ const DeadlineTracker = ({ deadlines }) => {
         <button className="text-slate-400 hover:text-blue-500"><SlidersHorizontal size={18}/></button>
       </div>
       <div className="space-y-7">
-        {items.map((item, i) => {
-          const days = getDaysRemaining(item.deadline);
+        {upcoming.length === 0 ? (
+          <div className="text-center py-6 text-slate-400 font-medium text-sm">
+            No upcoming deadlines.
+          </div>
+        ) : upcoming.map((item, i) => {
+          const days = item.daysRemaining;
           const progress = Math.min(100, Math.round((7 - days) / 7 * 100));
-          const name = item.title || item.company || 'Opportunity';
+          const name = item.title || 'Opportunity';
           return (
             <div key={item._id || i} className="space-y-2.5">
               <div className="flex justify-between items-center px-0.5">
                 <div className="flex items-center gap-2.5">
                   <div className="w-5 h-5 bg-white border border-slate-100 rounded flex items-center justify-center p-0.5 overflow-hidden">
                     <img
-                      src={`https://www.google.com/s2/favicons?domain=${name.split(' ')[0].toLowerCase()}.com`}
+                      src={`https://www.google.com/s2/favicons?domain=${(item.company || name).split(' ')[0].toLowerCase()}.com`}
                       alt=""
                       className="w-3.5 h-3.5"
                     />
