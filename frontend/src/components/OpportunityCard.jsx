@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { ExternalLink, RefreshCw } from 'lucide-react';
-import { revalidateOpportunityLink } from '../services/opportunityApi';
+import React, { useState, useEffect } from 'react';
+import { ExternalLink, RefreshCw, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
+import { revalidateOpportunityLink, clickApplyOpportunity, markOpportunityApplied } from '../services/opportunityApi';
 
 const getFaviconUrl = (url) => {
   try {
@@ -68,6 +68,24 @@ const parseDeadlineFromDescription = (description) => {
   return null;
 };
 
+const getResolvedDeadline = (isoDate, description) => {
+  const primary = isoDate ? new Date(isoDate) : null;
+  if (primary && !Number.isNaN(primary.getTime())) return primary;
+  return parseDeadlineFromDescription(description);
+};
+
+const getDeadlineUrgency = (deadlineDate) => {
+  if (!deadlineDate) return null;
+  const ms = deadlineDate.getTime() - Date.now();
+  if (ms <= 0) return { level: 'passed', label: 'Deadline passed!', cls: 'bg-red-500 text-white' };
+  const hours = ms / 3600000;
+  if (hours <= 6)  return { level: 'critical', label: `⚡ ${Math.floor(hours)}h ${Math.floor((ms % 3600000) / 60000)}m left — act now!`, cls: 'bg-red-500 text-white animate-pulse' };
+  if (hours <= 24) return { level: 'high',     label: `🔴 Deadline today — ${Math.floor(hours)}h left`, cls: 'bg-red-100 text-red-700 border border-red-200' };
+  if (hours <= 48) return { level: 'medium',   label: `⚠️ Deadline tomorrow`, cls: 'bg-orange-100 text-orange-700 border border-orange-200' };
+  if (hours <= 72) return { level: 'soon',     label: `⏰ Deadline in ${Math.floor(hours / 24)} days`, cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' };
+  return null;
+};
+
 const formatDeadline = (isoDate, description) => {
   const primary = isoDate ? new Date(isoDate) : null;
   const fallback = parseDeadlineFromDescription(description);
@@ -108,6 +126,17 @@ const LinkStatusBadge = ({ status }) => {
 const OpportunityCard = ({ opportunity, onLinkStatusUpdate }) => {
   const [currentLinkStatus, setCurrentLinkStatus] = useState(opportunity.linkStatus);
   const [revalidating, setRevalidating] = useState(false);
+  const [appStatus, setAppStatus] = useState(opportunity.applicationStatus || 'not_applied');
+  const [actionLoading, setActionLoading] = useState(false);
+  const [urgency, setUrgency] = useState(() => getDeadlineUrgency(getResolvedDeadline(opportunity.deadline, opportunity.description)));
+
+  // Live countdown — recalculate urgency every minute
+  useEffect(() => {
+    const deadline = getResolvedDeadline(opportunity.deadline, opportunity.description);
+    if (!deadline) return;
+    const id = setInterval(() => setUrgency(getDeadlineUrgency(deadline)), 60000);
+    return () => clearInterval(id);
+  }, [opportunity.deadline, opportunity.description]);
 
   const {
     title,
@@ -128,8 +157,33 @@ const OpportunityCard = ({ opportunity, onLinkStatusUpdate }) => {
   const linkStatus = currentLinkStatus;
   const logoSrc = logo || getFaviconUrl(applicationLink);
 
-  const handleApply = () => {
+  const handleApply = async () => {
+    if (appStatus === 'applied') return;
     if (applicationLink) window.open(applicationLink, '_blank', 'noopener,noreferrer');
+    if (appStatus !== 'applied' && opportunity._id) {
+      setActionLoading(true);
+      try {
+        await clickApplyOpportunity(opportunity._id);
+        setAppStatus('clicked_apply');
+      } catch {
+        // silently ignore — status still updates optimistically
+      } finally {
+        setActionLoading(false);
+      }
+    }
+  };
+
+  const handleMarkApplied = async () => {
+    if (!opportunity._id || actionLoading) return;
+    setActionLoading(true);
+    try {
+      await markOpportunityApplied(opportunity._id);
+      setAppStatus('applied');
+    } catch {
+      // silently ignore
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleRevalidate = async () => {
@@ -147,7 +201,25 @@ const OpportunityCard = ({ opportunity, onLinkStatusUpdate }) => {
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-[32px] p-7 shadow-sm hover:shadow-lg transition-all relative group flex items-start gap-6">
+    <div className={`bg-white border rounded-[32px] p-7 shadow-sm hover:shadow-lg transition-all relative group ${
+      urgency?.level === 'critical' || urgency?.level === 'passed'
+        ? 'border-red-300 shadow-red-100'
+        : urgency?.level === 'high'
+        ? 'border-red-200'
+        : urgency?.level === 'medium'
+        ? 'border-orange-200'
+        : 'border-slate-200'
+    }`}>
+      {/* Deadline urgency banner */}
+      {urgency && (
+        <div className={`absolute top-0 left-0 right-0 rounded-t-[32px] px-5 py-1.5 flex items-center gap-2 text-[12px] font-bold ${urgency.cls}`}>
+          {urgency.level === 'passed' || urgency.level === 'critical' || urgency.level === 'high'
+            ? <AlertTriangle size={12} />
+            : <Clock size={12} />}
+          {urgency.label}
+        </div>
+      )}
+      <div className={`flex items-start gap-6 w-full ${urgency ? 'pt-7' : ''}`}>
       <div className="w-14 h-14 bg-white border border-slate-100 rounded-2xl flex items-center justify-center p-2.5 shrink-0 shadow-sm group-hover:scale-105 transition-transform">
         {logoSrc ? (
           <img src={logoSrc} alt={company} className="w-full h-full object-contain" />
@@ -203,19 +275,49 @@ const OpportunityCard = ({ opportunity, onLinkStatusUpdate }) => {
           <button className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-sm active:scale-[0.98] transition-all">
             Structured View
           </button>
+
+          {/* Apply button — 3 states */}
           <button
             onClick={handleApply}
-            disabled={!applicationLink}
+            disabled={!applicationLink || appStatus === 'applied' || actionLoading}
             className={`flex-1 py-3 text-white rounded-2xl font-bold text-sm active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 ${
-              linkStatus === 'broken'
+              appStatus === 'applied'
+                ? 'bg-emerald-500 shadow-lg shadow-emerald-500/20 cursor-default'
+                : appStatus === 'clicked_apply'
+                ? 'bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-500/20'
+                : linkStatus === 'broken'
                 ? 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20'
                 : 'bg-[#3B82F6] hover:bg-blue-700 shadow-lg shadow-blue-500/20'
             }`}
-            title={linkStatus === 'broken' ? 'Warning: This link returned 404 — page may not exist' : undefined}
+            title={
+              appStatus === 'applied' ? 'Application submitted'
+              : appStatus === 'clicked_apply' ? 'Application in progress'
+              : linkStatus === 'broken' ? 'Warning: This link returned 404 — page may not exist'
+              : undefined
+            }
           >
-            {linkStatus === 'broken' ? '⚠ Apply' : 'Apply'} <ExternalLink size={13} />
+            {appStatus === 'applied' ? (
+              <><CheckCircle size={14} /> Applied</>
+            ) : appStatus === 'clicked_apply' ? (
+              <>Application In Progress <ExternalLink size={13} /></>
+            ) : (
+              <>{linkStatus === 'broken' ? '⚠ Apply' : 'Apply Now'} <ExternalLink size={13} /></>
+            )}
           </button>
+
+          {/* Mark as Applied — only shown when in clicked_apply state */}
+          {appStatus === 'clicked_apply' && (
+            <button
+              onClick={handleMarkApplied}
+              disabled={actionLoading}
+              className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-bold text-sm active:scale-[0.98] transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20"
+              title="Confirm you submitted the application form"
+            >
+              <CheckCircle size={14} /> Mark as Applied
+            </button>
+          )}
         </div>
+      </div>
       </div>
     </div>
   );

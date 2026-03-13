@@ -19,6 +19,11 @@ const notificationSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    type: {
+      type: String,
+      enum: ['reminder', 'system', 'info'],
+      default: 'reminder',
+    },
     seen: {
       type: Boolean,
       default: false,

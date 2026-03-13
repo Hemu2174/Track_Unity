@@ -97,4 +97,79 @@ const revalidateLink = async (req, res, next) => {
   }
 };
 
-module.exports = { getAllOpportunities, getOpportunityById, deleteOpportunity, revalidateLink };
+// @desc    Get opportunities sorted by nearest deadline (priority list)
+// @route   GET /api/opportunities/priority
+// @access  Private
+const getPriorityOpportunities = async (req, res, next) => {
+  try {
+    const now = new Date();
+    const opportunities = await Opportunity.find({
+      userId: req.user._id,
+      applicationStatus: { $in: ['not_applied', 'clicked_apply'] },
+      deadline: { $gte: now },
+    })
+      .select('title company deadline applicationStatus clickedAt priorityRank')
+      .sort({ deadline: 1 })
+      .limit(10)
+      .lean();
+
+    res.status(200).json({ success: true, data: opportunities });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Record that user clicked Apply (status → clicked_apply)
+// @route   POST /api/opportunities/:id/click-apply
+// @access  Private
+const clickApply = async (req, res, next) => {
+  try {
+    const opportunity = await Opportunity.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+    });
+
+    if (!opportunity) {
+      return res.status(404).json({ success: false, message: 'Opportunity not found' });
+    }
+
+    // Only move forward — don't downgrade from 'applied'
+    if (opportunity.applicationStatus === 'applied') {
+      return res.status(200).json({ success: true, opportunity });
+    }
+
+    opportunity.applicationStatus = 'clicked_apply';
+    opportunity.clickedAt = new Date();
+    await opportunity.save();
+
+    res.status(200).json({ success: true, opportunity });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Confirm application submitted (status → applied)
+// @route   POST /api/opportunities/:id/mark-applied
+// @access  Private
+const markApplied = async (req, res, next) => {
+  try {
+    const opportunity = await Opportunity.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+    });
+
+    if (!opportunity) {
+      return res.status(404).json({ success: false, message: 'Opportunity not found' });
+    }
+
+    opportunity.applicationStatus = 'applied';
+    opportunity.appliedAt = new Date();
+    await opportunity.save();
+
+    res.status(200).json({ success: true, opportunity });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getAllOpportunities, getOpportunityById, deleteOpportunity, revalidateLink, clickApply, markApplied, getPriorityOpportunities };

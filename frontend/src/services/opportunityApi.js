@@ -32,3 +32,18 @@ export const revalidateOpportunityLink = async (id) => {
   const res = await API.patch(`/opportunities/${id}/revalidate-link`);
   return res.data;
 };
+
+export const clickApplyOpportunity = async (id) => {
+  const res = await API.post(`/opportunities/${id}/click-apply`);
+  return res.data;
+};
+
+export const markOpportunityApplied = async (id) => {
+  const res = await API.post(`/opportunities/${id}/mark-applied`);
+  return res.data;
+};
+
+export const getPriorityOpportunities = async () => {
+  const res = await API.get('/opportunities/priority');
+  return res.data;
+};

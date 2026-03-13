@@ -21,6 +21,7 @@ import DeadlineTracker from '../components/DeadlineTracker'
 import RecommendationPanel from '../components/RecommendationPanel'
 import AdvancedStats from '../components/AdvancedStats'
 import ThemeToggle from '../components/ThemeToggle'
+import PriorityOpportunities from '../components/PriorityOpportunities'
 
 // Services
 import { getOpportunities, extractOpportunity, uploadPosterImage } from '../services/opportunityApi'
@@ -231,6 +232,8 @@ const DashboardPage = () => {
           </motion.div>
 
           <StatsCards stats={stats} />
+
+          <PriorityOpportunities />
 
           <motion.div
             initial={{ opacity: 0 }}

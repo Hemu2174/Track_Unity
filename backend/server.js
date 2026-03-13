@@ -8,6 +8,7 @@ const errorHandler = require('./middleware/errorHandler');
 const { initializeTelegramBot } = require('./services/telegramBotService');
 const { startReminderCron } = require('./services/reminderService');
 const { startEmailPollingCron } = require('./services/emailParser');
+const { startHourlyReminderEngine } = require('./services/hourlyReminderEngine');
 const { ingestTelegram } = require('./controllers/ingestionController');
 
 const authRoutes = require('./routes/authRoutes');
@@ -61,4 +62,5 @@ app.listen(PORT, () => {
   initializeTelegramBot();
   startReminderCron();
   startEmailPollingCron();
+  startHourlyReminderEngine();
 });

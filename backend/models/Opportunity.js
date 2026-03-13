@@ -40,6 +40,14 @@ const opportunitySchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'RawMessage',
     },
+    applicationStatus: {
+      type: String,
+      enum: ['not_applied', 'clicked_apply', 'applied'],
+      default: 'not_applied',
+    },
+    clickedAt: { type: Date, default: null },
+    appliedAt: { type: Date, default: null },
+    priorityRank: { type: Number, default: null },
   },
   { timestamps: true }
 );
