@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ExternalLink, RefreshCw, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
-import { revalidateOpportunityLink, clickApplyOpportunity, markOpportunityApplied } from '../services/opportunityApi';
+import { revalidateOpportunityLink, clickApplyOpportunity } from '../services/opportunityApi';
 
 const getFaviconUrl = (url) => {
   try {
@@ -173,19 +173,6 @@ const OpportunityCard = ({ opportunity, onLinkStatusUpdate }) => {
     }
   };
 
-  const handleMarkApplied = async () => {
-    if (!opportunity._id || actionLoading) return;
-    setActionLoading(true);
-    try {
-      await markOpportunityApplied(opportunity._id);
-      setAppStatus('applied');
-    } catch {
-      // silently ignore
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const handleRevalidate = async () => {
     if (!_id || revalidating) return;
     setRevalidating(true);
@@ -305,17 +292,6 @@ const OpportunityCard = ({ opportunity, onLinkStatusUpdate }) => {
             )}
           </button>
 
-          {/* Mark as Applied — only shown when in clicked_apply state */}
-          {appStatus === 'clicked_apply' && (
-            <button
-              onClick={handleMarkApplied}
-              disabled={actionLoading}
-              className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-bold text-sm active:scale-[0.98] transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20"
-              title="Confirm you submitted the application form"
-            >
-              <CheckCircle size={14} /> Mark as Applied
-            </button>
-          )}
         </div>
       </div>
       </div>
