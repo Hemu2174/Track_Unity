@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { registerUser } from '../services/authApi'
 import { submitOnboarding } from '../services/profileApi'
 import { useAuth } from '../context/AuthContext'
+import ThemeToggle from '../components/ThemeToggle'
 
 const INTERESTS = ['Web Dev', 'AI/ML', 'Cloud', 'Cybersecurity', 'FinTech', 'Data Science']
 
@@ -57,6 +58,10 @@ const OnboardingPage = () => {
 
   return (
     <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      <div className="absolute top-6 right-6 z-20">
+        <ThemeToggle />
+      </div>
+
       {/* Background decoration */}
       <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full"></div>

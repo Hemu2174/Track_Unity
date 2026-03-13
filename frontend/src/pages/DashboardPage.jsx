@@ -20,6 +20,7 @@ import NotificationsPanel from '../components/NotificationsPanel'
 import DeadlineTracker from '../components/DeadlineTracker'
 import RecommendationPanel from '../components/RecommendationPanel'
 import AdvancedStats from '../components/AdvancedStats'
+import ThemeToggle from '../components/ThemeToggle'
 
 // Services
 import { getDashboard } from '../services/dashboardApi'
@@ -277,6 +278,7 @@ const DashboardPage = () => {
               <LogOut size={16} />
               <span className="hidden md:inline">Logout</span>
             </button>
+            <ThemeToggle />
           </div>
       </nav>
 

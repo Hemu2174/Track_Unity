@@ -7,6 +7,7 @@ import StepOneForm from '../components/StepOneForm'
 import StepTwoForm from '../components/StepTwoForm'
 import { registerUser } from '../services/authApi'
 import { useAuth } from '../context/AuthContext'
+import ThemeToggle from '../components/ThemeToggle'
 
 const RegisterPage = () => {
   const navigate = useNavigate()
@@ -59,6 +60,10 @@ const RegisterPage = () => {
 
   return (
     <div className="min-h-screen bg-[#030712] flex items-center justify-center px-4 py-16 relative overflow-hidden">
+      <div className="absolute top-6 right-6 z-20">
+        <ThemeToggle />
+      </div>
+
       {/* Background blobs */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-blue-600/10 blur-[120px] -z-10 pointer-events-none" />
       <div className="absolute bottom-0 left-1/4 w-[400px] h-[400px] bg-indigo-600/10 blur-[100px] -z-10 pointer-events-none" />

@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Mail, Lock, Loader2 } from 'lucide-react'
 import { loginUser } from '../services/authApi'
 import { useAuth } from '../context/AuthContext'
+import ThemeToggle from '../components/ThemeToggle'
 
 const LoginPage = () => {
   const navigate = useNavigate()
@@ -35,6 +36,10 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen relative flex items-center justify-center p-6 bg-mesh overflow-hidden">
+      <div className="absolute top-8 right-8 z-20">
+        <ThemeToggle />
+      </div>
+
       <div className="glow-mesh">
         <div className="glow-blob glow-blob-1"></div>
         <div className="glow-blob glow-blob-2"></div>
